@@ -95,24 +95,24 @@ public abstract aspect Tracer {
 	
 	private void normalExit(String message) {
 		if (stack.getFirst() == modCount)
-			System.out.print("< " + message);
+			System.out.print("<< " + message);
 		else
-			System.out.printf("\n[% 8d] < %s%s", System.currentTimeMillis() - START_TIME, getIndentString(), message);
+			System.out.printf("\n[% 8d] << %s%s", System.currentTimeMillis() - START_TIME, getIndentString(), message);
 	}
 	
 	private void abnormalExit(String message) {
 		if (stack.getFirst() == modCount)
-			System.out.print("! " + message);
+			System.out.print("!! " + message);
 		else
-			System.out.printf("\n[% 8d] ! %s%s", System.currentTimeMillis() - START_TIME, getIndentString(), message);
+			System.out.printf("\n[% 8d] !! %s%s", System.currentTimeMillis() - START_TIME, getIndentString(), message);
 	}
 	
 	private void entry(String message) {
-		System.out.printf("\n[% 8d] > %s%s", System.currentTimeMillis() - START_TIME, getIndentString(), message);
+		System.out.printf("\n[% 8d] >> %s%s", System.currentTimeMillis() - START_TIME, getIndentString(), message);
 	}
 
 	private void fieldSet(String message) {
-		System.out.printf("\n[% 8d] = %s%s", System.currentTimeMillis() - START_TIME, getIndentString(), message);
+		System.out.printf("\n[% 8d] == %s%s", System.currentTimeMillis() - START_TIME, getIndentString(), message);
 	}
 
 	private String getIndentString() {
