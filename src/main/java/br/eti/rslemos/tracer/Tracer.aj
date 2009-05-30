@@ -5,7 +5,6 @@ import java.util.Arrays;
 import java.util.List;
 
 import org.aspectj.lang.Signature;
-import org.aspectj.lang.SoftException;
 import org.aspectj.lang.reflect.ConstructorSignature;
 import org.aspectj.lang.reflect.MethodSignature;
 
@@ -14,8 +13,6 @@ public aspect Tracer {
 	
 	private int indent = -INDENT_SIZE;
 
-	private int modCount = 0;
-	
 	private pointcut methodcall(): call(* *(..));
 	private pointcut ctorcall(): call(*.new(..));
 	
@@ -25,24 +22,16 @@ public aspect Tracer {
 	
 	private pointcut cflowJavaLang(): cflow(call(* java.lang.*.*(..)));
 	
-	private pointcut tracecall(): (methodcall() || ctorcall()) && !cflowJavaUtil() && !cflowJavaLang() && !within(Tracer);
+	private pointcut tracecall(): (methodcall() || ctorcall()) && !cflowJavaUtil() && !cflowJavaLang() && !within(Tracer+);
 
-	private pointcut traceset(Object value): setter(value) && !cflowJavaUtil() && !cflowJavaLang() && !within(Tracer);
+	private pointcut traceset(Object value): setter(value) && !cflowJavaUtil() && !cflowJavaLang() && !within(Tracer+);
 
-	Object around(Object value): traceset(value) {
-		char[] c = new char[indent + INDENT_SIZE];
-		Arrays.fill(c, ' ');
-		
-		String indentStr = new String(c);
-
-		System.out.print("\n" + indentStr + thisJoinPointStaticPart.getSignature().toString() + " = " + String.valueOf(value) + " (" + thisJoinPointStaticPart.getSourceLocation() + ")");
-		modCount++;
-		
-		return proceed(value);
+	before(Object value): traceset(value) {
+		String message = thisJoinPointStaticPart.getSignature().toString() + " = " + String.valueOf(value) + " (" + thisJoinPointStaticPart.getSourceLocation() + ")";
+		printOnNewLine(INDENT_SIZE, message);
 	}
-
-
-	Object around(): tracecall() {
+	
+	before(): tracecall() {
 		Signature aspectSignature = thisJoinPointStaticPart.getSignature();
 
 		List<Object> args = Arrays.asList(thisJoinPoint.getArgs());
@@ -60,71 +49,66 @@ public aspect Tracer {
 		} else
 			signature = aspectSignature.getDeclaringTypeName() + "." + aspectSignature.getName();
 		
-		int localModCount = ++modCount;
-		try {
-			char[] c = new char[indent += INDENT_SIZE];
-			Arrays.fill(c, ' ');
-			
-			String indentStr = new String(c);
-			try {
-				
-				System.out.print("\n" + indentStr + signature + "(" + argsStr + ")" + " (" + thisJoinPointStaticPart.getSourceLocation() + ") ");
-				Object result = proceed();
-				
-				String resultStr;
-				if (aspectSignature instanceof MethodSignature) {
-					MethodSignature methodSignature = (MethodSignature)aspectSignature;
-					if (methodSignature.getReturnType() == void.class)
-						resultStr = null;
-					else if (result instanceof String)
-						resultStr = "\"" + result + "\"";
-					else
-						resultStr = String.valueOf(result);
-				} else if (aspectSignature instanceof ConstructorSignature) {
-					if (result instanceof String)
-						resultStr = "\"" + result + "\"";
-					else if (result != null) {
-						Class<?> clazz = result.getClass();
-						try {
-							Method toString = clazz.getMethod("toString", new Class[0]);
-							Method toString0 = Object.class.getMethod("toString", new Class[0]);
-							
-							if (toString0.equals(toString)) {
-								resultStr = String.valueOf(System.identityHashCode(result));
-							} else
-								resultStr = String.valueOf(result);
-						} catch (NoSuchMethodException e) {
-							resultStr = String.valueOf(result);
-						}
+		indent += INDENT_SIZE;
+
+		printOnNewLine(0, signature + "(" + argsStr + ")" + " (" + thisJoinPointStaticPart.getSourceLocation() + ") ");
+	}
+	
+	after() returning(Object result): tracecall() {
+		Signature aspectSignature = thisJoinPointStaticPart.getSignature();
+
+		String resultStr;
+		if (aspectSignature instanceof MethodSignature) {
+			MethodSignature methodSignature = (MethodSignature)aspectSignature;
+			if (methodSignature.getReturnType() == void.class)
+				resultStr = null;
+			else if (result instanceof String)
+				resultStr = "\"" + result + "\"";
+			else
+				resultStr = String.valueOf(result);
+		} else if (aspectSignature instanceof ConstructorSignature) {
+			if (result instanceof String)
+				resultStr = "\"" + result + "\"";
+			else if (result != null) {
+				Class<?> clazz = result.getClass();
+				try {
+					Method toString = clazz.getMethod("toString", new Class[0]);
+					Method toString0 = Object.class.getMethod("toString", new Class[0]);
+					
+					if (toString0.equals(toString)) {
+						resultStr = String.valueOf(System.identityHashCode(result));
 					} else
 						resultStr = String.valueOf(result);
-				} else
+				} catch (NoSuchMethodException e) {
 					resultStr = String.valueOf(result);
-	
-				if (resultStr != null) {
-					if (localModCount == modCount)
-						System.out.print(": " + resultStr);
-					else
-						System.out.print("\n" + indentStr + "..." + resultStr);
 				}
-				
-				return result;
-			} catch (Throwable t) {
-				String resultStr = "threw " + t.getClass().getName() + ": \"" + t.getMessage() + "\"";
-				
-				if (localModCount == modCount)
-					System.out.print(": " + resultStr);
-				else
-					System.out.print("\n" + indentStr + "..." + resultStr);
-				
-				if (t instanceof RuntimeException)
-					throw (RuntimeException)t;
-				else
-					throw new SoftException(t);
-			}
-		} finally {
-			indent -= INDENT_SIZE;
+			} else
+				resultStr = String.valueOf(result);
+		} else
+			resultStr = String.valueOf(result);
+
+		if (resultStr != null) {
+			printOnNewLine(0, "..." + resultStr);
 		}
+		
+		indent -= INDENT_SIZE;
+	}
+	
+	after() throwing(Throwable t): tracecall() {
+		printOnNewLine(0, "...threw " + t.getClass().getName() + ": \"" + t.getMessage() + "\"");
+
+		indent -= INDENT_SIZE;
+	}
+	
+	private void printOnNewLine(int offset, String message) {
+		System.out.print("\n" + getIndentString(offset) + message);
+	}
+
+	private String getIndentString(int offset) {
+		char[] c = new char[indent + offset];
+		Arrays.fill(c, ' ');
+		
+		return new String(c);
 	}
 
 }
