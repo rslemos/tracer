@@ -18,25 +18,27 @@ public abstract aspect Tracer {
 	
 	private pointcut setter(Object value): set(* *) && args(value) && filter();
 	
-	private pointcut cflowJavaUtil(): cflow(call(* java.util.*.*(..)));
+	private pointcut cflowJavaUtil(): cflow(execution(* java.util.*.*(..)));
 	
-	private pointcut cflowJavaLang(): cflow(call(* java.lang.*.*(..)));
+	private pointcut cflowJavaLang(): cflow(execution(* java.lang.*.*(..)));
+
+	private pointcut cflowTracer(): cflow(within(Tracer+));
+
+	private pointcut tracemethod(): methodcall() && !cflowJavaUtil() && !cflowJavaLang() && !cflowTracer() && filter();
 	
-	private pointcut tracemethod(): methodcall() && !cflowJavaUtil() && !cflowJavaLang() && !within(Tracer+) && filter();
-	
-	private pointcut tracector(): ctorcall() && !cflowJavaUtil() && !cflowJavaLang() && !within(Tracer+) && filter();
+	private pointcut tracector(): ctorcall() && !cflowJavaUtil() && !cflowJavaLang() && !cflowTracer() && filter();
 	
 	private pointcut tracecall(): tracector() || tracemethod();
 
-	private pointcut traceset(Object value): setter(value) && !cflowJavaUtil() && !cflowJavaLang() && !within(Tracer+);
+	private pointcut traceset(Object value): setter(value) && !cflowJavaUtil() && !cflowJavaLang() && !cflowTracer() && filter();
 
-	before(Object value): traceset(value) {
-		String message = thisJoinPointStaticPart.getSignature().toString() + " = " + String.valueOf(value) + " (" + thisJoinPointStaticPart.getSourceLocation() + ")";
-		printOnNewLine(1, message);
+	before(): tracecall() || traceset(Object) {
+		indent += INDENT_SIZE;
 	}
 	
-	before(): tracecall() {
-		increaseIndent();
+	before(Object value): traceset(value) {
+		String message = thisJoinPointStaticPart.getSignature().toString() + " = " + toString(value) + " (" + thisJoinPointStaticPart.getSourceLocation() + ")";
+		printOnNewLine(message);
 	}
 	
 	before(): tracemethod() {
@@ -59,45 +61,37 @@ public abstract aspect Tracer {
 		if (builder.length() > 0)
 			builder.setLength(builder.length() - 2);
 		
-		printOnNewLine(0, signature + "(" + builder.toString() + ")" + " (" + location + ") ");
+		printOnNewLine(signature + "(" + builder.toString() + ")" + " (" + location + ") ");
 	}
 	
 	after() returning(Object result): tracemethod() {
 		MethodSignature methodSignature = (MethodSignature)thisJoinPointStaticPart.getSignature();
 		if (methodSignature.getReturnType() != void.class) {
-			printOnNewLine(0, "..." + toString(result));
+			printOnNewLine("..." + toString(result));
 		} 
 	}
 	
 	after() returning(Object result): tracector() {
-		printOnNewLine(0, "..." + toString(result));
+		printOnNewLine("..." + toString(result));
 	}
 	
 	after() throwing(Throwable t): tracecall() {
-		printOnNewLine(0, "...threw " + t.getClass().getName() + ": \"" + t.getMessage() + "\"");
+		printOnNewLine("...threw " + t.getClass().getName() + ": \"" + t.getMessage() + "\"");
 	}
 	
-	after(): tracecall() {
-		decreaseIndent();
+	after(): tracecall() || traceset(Object) {
+		indent -= INDENT_SIZE;
 	}
 	
-	private void printOnNewLine(int extra, String message) {
-		System.out.print("\n" + getIndentString(extra) + message);
+	private void printOnNewLine(String message) {
+		System.out.print("\n" + getIndentString() + message);
 	}
 
-	private String getIndentString(int extra) {
-		char[] c = new char[indent + extra*INDENT_SIZE];
+	private String getIndentString() {
+		char[] c = new char[indent];
 		Arrays.fill(c, ' ');
 		
 		return new String(c);
-	}
-
-	private void increaseIndent() {
-		indent += INDENT_SIZE;
-	}
-
-	private void decreaseIndent() {
-		indent -= INDENT_SIZE;
 	}
 
 	private String toString(Object o) {
@@ -110,7 +104,7 @@ public abstract aspect Tracer {
 				Method toString0 = Object.class.getMethod("toString", new Class[0]);
 				
 				if (toString0.equals(toString))
-					return clazz.getSimpleName() + "@" + Integer.toHexString(System.identityHashCode(o));
+					return "<" + clazz.getSimpleName() + ">";
 				
 			} catch (NoSuchMethodException e) {
 			}
