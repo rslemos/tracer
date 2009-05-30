@@ -8,6 +8,8 @@ import org.aspectj.lang.reflect.MethodSignature;
 import org.aspectj.lang.reflect.SourceLocation;
 
 public abstract aspect Tracer {
+	private final long START_TIME = System.currentTimeMillis();
+	
 	private final int INDENT_SIZE = 4;
 	
 	private int indent = -INDENT_SIZE;
@@ -103,7 +105,7 @@ public abstract aspect Tracer {
 	}
 
 	private void printOnNewLine(String message) {
-		System.out.print("\n" + getIndentString() + message);
+		System.out.printf("\n[% 8d] %s%s", System.currentTimeMillis() - START_TIME, getIndentString(), message);
 	}
 
 	private String getIndentString() {
