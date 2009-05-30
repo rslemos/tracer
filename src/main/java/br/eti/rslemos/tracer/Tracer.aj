@@ -47,7 +47,7 @@ public abstract aspect Tracer {
 	
 	before(Object value): traceset(value) {
 		String message = thisJoinPointStaticPart.getSignature().toString() + " = " + toString(value) + " (" + thisJoinPointStaticPart.getSourceLocation() + ")";
-		printOnNewLine(message);
+		fieldSet(message);
 	}
 	
 	before(): tracemethod() {
@@ -70,29 +70,22 @@ public abstract aspect Tracer {
 		if (builder.length() > 0)
 			builder.setLength(builder.length() - 2);
 		
-		printOnNewLine(signature + "(" + builder.toString() + ")" + " (" + location + ")");
+		entry(signature + "(" + builder.toString() + ")" + " (" + location + ") ");
 	}
 	
 	after() returning(Object result): tracemethod() {
 		MethodSignature methodSignature = (MethodSignature)thisJoinPointStaticPart.getSignature();
 		if (methodSignature.getReturnType() != void.class) {
-			printOnSameLineIfPossible(toString(result));
+			normalExit(toString(result));
 		} 
 	}
 	
 	after() returning(Object result): tracector() {
-		printOnSameLineIfPossible(toString(result));
+		normalExit(toString(result));
 	}
 
 	after() throwing(Throwable t): tracecall() {
-		printOnSameLineIfPossible("threw " + t.getClass().getName() + ": \"" + t.getMessage() + "\"");
-	}
-	
-	private void printOnSameLineIfPossible(String message) {
-		if (stack.getFirst() == modCount)
-			printOnSameLine(": " + message);
-		else
-			printOnNewLine("..." + message);
+		abnormalExit("threw " + t.getClass().getName() + ": \"" + t.getMessage() + "\"");
 	}
 	
 	after(): tracecall() || traceset(Object) {
@@ -100,12 +93,26 @@ public abstract aspect Tracer {
 		stack.pop();
 	}
 	
-	private void printOnSameLine(String message) {
-		System.out.print(message);
+	private void normalExit(String message) {
+		if (stack.getFirst() == modCount)
+			System.out.print("< " + message);
+		else
+			System.out.printf("\n[% 8d] < %s%s", System.currentTimeMillis() - START_TIME, getIndentString(), message);
+	}
+	
+	private void abnormalExit(String message) {
+		if (stack.getFirst() == modCount)
+			System.out.print("! " + message);
+		else
+			System.out.printf("\n[% 8d] ! %s%s", System.currentTimeMillis() - START_TIME, getIndentString(), message);
+	}
+	
+	private void entry(String message) {
+		System.out.printf("\n[% 8d] > %s%s", System.currentTimeMillis() - START_TIME, getIndentString(), message);
 	}
 
-	private void printOnNewLine(String message) {
-		System.out.printf("\n[% 8d] %s%s", System.currentTimeMillis() - START_TIME, getIndentString(), message);
+	private void fieldSet(String message) {
+		System.out.printf("\n[% 8d] = %s%s", System.currentTimeMillis() - START_TIME, getIndentString(), message);
 	}
 
 	private String getIndentString() {
