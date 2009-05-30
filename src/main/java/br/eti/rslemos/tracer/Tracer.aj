@@ -2,6 +2,7 @@ package br.eti.rslemos.tracer;
 
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.LinkedList;
 
 import org.aspectj.lang.reflect.MethodSignature;
 import org.aspectj.lang.reflect.SourceLocation;
@@ -11,6 +12,11 @@ public abstract aspect Tracer {
 	
 	private int indent = -INDENT_SIZE;
 
+	private int modCount = 0;
+	
+	private LinkedList<Integer> stack = new LinkedList<Integer>();
+	
+	
 	protected abstract pointcut filter();
 	
 	private pointcut methodcall(): call(* *(..));
@@ -33,6 +39,7 @@ public abstract aspect Tracer {
 	private pointcut traceset(Object value): setter(value) && !cflowJavaUtil() && !cflowJavaLang() && !cflowTracer() && filter();
 
 	before(): tracecall() || traceset(Object) {
+		stack.push(++modCount);
 		indent += INDENT_SIZE;
 	}
 	
@@ -61,28 +68,40 @@ public abstract aspect Tracer {
 		if (builder.length() > 0)
 			builder.setLength(builder.length() - 2);
 		
-		printOnNewLine(signature + "(" + builder.toString() + ")" + " (" + location + ") ");
+		printOnNewLine(signature + "(" + builder.toString() + ")" + " (" + location + ")");
 	}
 	
 	after() returning(Object result): tracemethod() {
 		MethodSignature methodSignature = (MethodSignature)thisJoinPointStaticPart.getSignature();
 		if (methodSignature.getReturnType() != void.class) {
-			printOnNewLine("..." + toString(result));
+			printOnSameLineIfPossible(toString(result));
 		} 
 	}
 	
 	after() returning(Object result): tracector() {
-		printOnNewLine("..." + toString(result));
+		printOnSameLineIfPossible(toString(result));
+	}
+
+	after() throwing(Throwable t): tracecall() {
+		printOnSameLineIfPossible("threw " + t.getClass().getName() + ": \"" + t.getMessage() + "\"");
 	}
 	
-	after() throwing(Throwable t): tracecall() {
-		printOnNewLine("...threw " + t.getClass().getName() + ": \"" + t.getMessage() + "\"");
+	private void printOnSameLineIfPossible(String message) {
+		if (stack.getFirst() == modCount)
+			printOnSameLine(": " + message);
+		else
+			printOnNewLine("..." + message);
 	}
 	
 	after(): tracecall() || traceset(Object) {
 		indent -= INDENT_SIZE;
+		stack.pop();
 	}
 	
+	private void printOnSameLine(String message) {
+		System.out.print(message);
+	}
+
 	private void printOnNewLine(String message) {
 		System.out.print("\n" + getIndentString() + message);
 	}
