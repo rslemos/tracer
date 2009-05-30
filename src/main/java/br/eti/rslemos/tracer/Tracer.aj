@@ -2,28 +2,29 @@ package br.eti.rslemos.tracer;
 
 import java.lang.reflect.Method;
 import java.util.Arrays;
-import java.util.List;
 
 import org.aspectj.lang.reflect.MethodSignature;
 import org.aspectj.lang.reflect.SourceLocation;
 
-public aspect Tracer {
+public abstract aspect Tracer {
 	private final int INDENT_SIZE = 4;
 	
 	private int indent = -INDENT_SIZE;
 
+	protected abstract pointcut filter();
+	
 	private pointcut methodcall(): call(* *(..));
 	private pointcut ctorcall(): call(*.new(..));
 	
-	private pointcut setter(Object value): set(* *) && args(value);
+	private pointcut setter(Object value): set(* *) && args(value) && filter();
 	
 	private pointcut cflowJavaUtil(): cflow(call(* java.util.*.*(..)));
 	
 	private pointcut cflowJavaLang(): cflow(call(* java.lang.*.*(..)));
 	
-	private pointcut tracemethod(): methodcall() && !cflowJavaUtil() && !cflowJavaLang() && !within(Tracer+);
+	private pointcut tracemethod(): methodcall() && !cflowJavaUtil() && !cflowJavaLang() && !within(Tracer+) && filter();
 	
-	private pointcut tracector(): ctorcall() && !cflowJavaUtil() && !cflowJavaLang() && !within(Tracer+);
+	private pointcut tracector(): ctorcall() && !cflowJavaUtil() && !cflowJavaLang() && !within(Tracer+) && filter();
 	
 	private pointcut tracecall(): tracector() || tracemethod();
 
