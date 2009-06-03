@@ -75,7 +75,7 @@ public abstract aspect Tracer {
 	
 	after() returning(Object result): tracemethod() {
 		MethodSignature methodSignature = (MethodSignature)thisJoinPointStaticPart.getSignature();
-		if (methodSignature.getReturnType() != void.class) {
+		if (methodSignature.getReturnType() != Void.TYPE) {
 			normalExit(toString(result));
 		} 
 	}
