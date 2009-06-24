@@ -8,8 +8,6 @@ import org.aspectj.lang.reflect.MethodSignature;
 import org.aspectj.lang.reflect.SourceLocation;
 
 public abstract aspect Tracer {
-	private final long START_TIME = System.currentTimeMillis();
-	
 	private final int INDENT_SIZE = 4;
 	
 	private int indent = -INDENT_SIZE;
@@ -26,19 +24,15 @@ public abstract aspect Tracer {
 	
 	private pointcut setter(Object value): set(* *) && args(value) && filter();
 	
-	private pointcut cflowJavaUtil(): cflow(execution(* java.util.*.*(..)));
-	
-	private pointcut cflowJavaLang(): cflow(execution(* java.lang.*.*(..)));
-
 	private pointcut cflowTracer(): cflow(within(Tracer+));
 
-	private pointcut tracemethod(): methodcall() && !cflowJavaUtil() && !cflowJavaLang() && !cflowTracer() && filter();
+	private pointcut tracemethod(): methodcall() && !cflowTracer() && filter();
 	
-	private pointcut tracector(): ctorcall() && !cflowJavaUtil() && !cflowJavaLang() && !cflowTracer() && filter();
+	private pointcut tracector(): ctorcall() && !cflowTracer() && filter();
 	
 	private pointcut tracecall(): tracector() || tracemethod();
 
-	private pointcut traceset(Object value): setter(value) && !cflowJavaUtil() && !cflowJavaLang() && !cflowTracer() && filter();
+	private pointcut traceset(Object value): setter(value) && !cflowTracer() && filter();
 
 	before(): tracecall() || traceset(Object) {
 		stack.push(++modCount);
@@ -46,8 +40,8 @@ public abstract aspect Tracer {
 	}
 	
 	before(Object value): traceset(value) {
-		String message = thisJoinPointStaticPart.getSignature().toString() + " = " + toString(value) + " (" + thisJoinPointStaticPart.getSourceLocation() + ")";
-		fieldSet(message);
+		String message = thisJoinPointStaticPart.getSignature().toString() + " = " + toString(value);
+		fieldSet(thisJoinPointStaticPart.getSourceLocation(), message);
 	}
 	
 	before(): tracemethod() {
@@ -70,7 +64,7 @@ public abstract aspect Tracer {
 		if (builder.length() > 0)
 			builder.setLength(builder.length() - 2);
 		
-		entry(signature + "(" + builder.toString() + ")" + " (" + location + ") ");
+		entry(location, signature + "(" + builder.toString() + ") ");
 	}
 	
 	after() returning(Object result): tracemethod() {
@@ -97,22 +91,22 @@ public abstract aspect Tracer {
 		if (stack.getFirst() == modCount)
 			System.out.print("<< " + message);
 		else
-			System.out.printf("\n[% 8d] << %s%s", System.currentTimeMillis() - START_TIME, getIndentString(), message);
+			System.out.printf("\n[% 8d] %40s << %s%s", modCount, "[" + stack.getFirst() + "]", getIndentString(), message);
 	}
 	
 	private void abnormalExit(String message) {
 		if (stack.getFirst() == modCount)
 			System.out.print("!! " + message);
 		else
-			System.out.printf("\n[% 8d] !! %s%s", System.currentTimeMillis() - START_TIME, getIndentString(), message);
+			System.out.printf("\n[% 8d] %40s !! %s%s", modCount, "[" + stack.getFirst() + "]", getIndentString(), message);
 	}
 	
-	private void entry(String message) {
-		System.out.printf("\n[% 8d] >> %s%s", System.currentTimeMillis() - START_TIME, getIndentString(), message);
+	private void entry(SourceLocation sl, String message) {
+		System.out.printf("\n[% 8d] %40s >> %s%s", modCount, "(" + sl.toString() + ")", getIndentString(), message);
 	}
 
-	private void fieldSet(String message) {
-		System.out.printf("\n[% 8d] == %s%s", System.currentTimeMillis() - START_TIME, getIndentString(), message);
+	private void fieldSet(SourceLocation sl, String message) {
+		System.out.printf("\n[% 8d] %40s == %s%s", modCount, "(" + sl.toString() + ")", getIndentString(), message);
 	}
 
 	private String getIndentString() {
