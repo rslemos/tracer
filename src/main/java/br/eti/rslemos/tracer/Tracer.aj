@@ -1,5 +1,6 @@
 package br.eti.rslemos.tracer;
 
+import java.lang.reflect.Array;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.LinkedList;
@@ -121,14 +122,32 @@ public abstract aspect Tracer {
 			return "\"" + o + "\"";
 		else if (o != null) {
 			Class<?> clazz = o.getClass();
-			try {
-				Method toString = clazz.getMethod("toString", new Class[0]);
-				Method toString0 = Object.class.getMethod("toString", new Class[0]);
+			if (!clazz.isArray()) {
+				try {
+					Method toString = clazz.getMethod("toString", new Class[0]);
+					Method toString0 = Object.class.getMethod("toString", new Class[0]);
+					
+					if (toString0.equals(toString))
+						return "<" + clazz.getSimpleName() + ">";
+					
+				} catch (NoSuchMethodException e) {
+				}
+			} else {
+				int length = Array.getLength(o);
+				StringBuilder builder = new StringBuilder();
+				builder.append("[");
 				
-				if (toString0.equals(toString))
-					return "<" + clazz.getSimpleName() + ">";
+				for(int i = 0; i < length && i < 3; i++) {
+					builder.append(toString(Array.get(o, i)));
+					builder.append(", ");
+				}
+				if (length > 3)
+					builder.append("... more ").append(length - 3).append(" elements");
+				else
+					builder.setLength(builder.length() - 2);
 				
-			} catch (NoSuchMethodException e) {
+				builder.append("]");
+				return builder.toString();
 			}
 		}
 		
