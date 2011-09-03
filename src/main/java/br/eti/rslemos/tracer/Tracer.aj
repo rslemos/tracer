@@ -57,7 +57,7 @@ public abstract aspect Tracer {
 	private pointcut traceset(Object value): setter(value) && !cflowTracer() && filter();
 
 	before(): tracecall() || traceset(Object) {
-		stack.push(++modCount);
+		stack.addFirst(++modCount);
 		indent += INDENT_SIZE;
 	}
 	
@@ -106,7 +106,7 @@ public abstract aspect Tracer {
 	
 	after(): tracecall() || traceset(Object) {
 		indent -= INDENT_SIZE;
-		stack.pop();
+		stack.removeFirst();
 	}
 	
 	private void normalExit(String message) {
